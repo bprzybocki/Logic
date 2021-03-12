@@ -107,3 +107,19 @@ let rec dual (fm : prop_fm) : prop_fm =
         | And(p,q) -> Or(dual p, dual q)
         | Or(p,q) -> And(dual p, dual q)
         | _ -> failwith "Formula involves connectives ==> or <=>";;
+
+let rec cnf_to_list (fm : prop_fm) : prop_fm list list =
+        match fm with
+          Var p -> [[Var p]]
+        | Not p -> [[Not p]]
+        | And(p,q) -> cnf_to_list p @ cnf_to_list q
+        | Or(p,q) -> [List.hd (cnf_to_list p) @ List.hd (cnf_to_list q)]
+        | _ -> failwith "Formula not in CNF";;
+
+let rec dnf_to_list (fm : prop_fm) : prop_fm list list =
+        match fm with
+          Var p -> [[Var p]]
+        | Not p -> [[Not p]]
+        | And(p,q) -> [List.hd (cnf_to_list p) @ List.hd (cnf_to_list q)]
+        | Or(p,q) -> cnf_to_list p @ cnf_to_list q
+        | _ -> failwith "Formula not in DNF";;
