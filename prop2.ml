@@ -86,3 +86,24 @@ let rec rawcnf (fm : prop_fm) : prop_fm =
         | _ -> fm;;
 
 let cnf (fm : prop_fm) : prop_fm = rawcnf (nnf fm);;
+
+let rec eval (fm : prop_fm) (v : string -> bool) : bool =
+        match fm with
+          False -> false
+        | True -> true
+        | Var p -> v(p)
+        | Not p -> not(eval p v)
+        | And(p,q) -> (eval p v) && (eval q v)
+        | Or(p,q) -> (eval p v) || (eval q v)
+        | Imp(p,q) -> not(eval p v) || (eval q v)
+        | Iff(p,q) -> (eval p v) = (eval q v);;
+
+let rec dual (fm : prop_fm) : prop_fm =
+        match fm with
+          False -> True
+        | True -> False
+        | Var p -> fm
+        | Not p -> Not(dual p)
+        | And(p,q) -> Or(dual p, dual q)
+        | Or(p,q) -> And(dual p, dual q)
+        | _ -> failwith "Formula involves connectives ==> or <=>";;
