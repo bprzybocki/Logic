@@ -139,3 +139,44 @@ let negate (lit : prop_fm) : prop_fm =
 let trivial (lits : prop_fm list) : bool =
         let pos,neg = partition positive lits in
         intersect pos (image negate neg) <> [];;
+
+let cnf_to_list (fm : prop_fm) : prop_fm list list =
+        let list1 = filter (non trivial) (cnf_to_list fm) in
+        let list2 = image setify list1 in
+        setify list2;;
+
+let dnf_to_list (fm : prop_fm) : prop_fm list list =
+        let list1 = filter (non trivial) (dnf_to_list fm) in
+        let list2 = image setify list1 in
+        setify list2;;
+
+let one_literal_rule (clauses : prop_fm list list) : prop_fm list list =
+        let u = List.hd (find (fun cl -> length cl = 1) clauses) in
+        let u' = negate u in
+        let clauses1 = filter (fun cl -> not (mem u cl)) clauses in
+        image (fun cl -> subtract cl [u']) clauses1;;
+
+let affirmative_negative_rule (clauses : prop_fm list list) : prop_fm list list =
+        let neg',pos = partition negative (unions clauses) in
+        let neg = image negate neg' in
+        let pos_only = subtract pos neg and neg_only = subtract neg pos in
+        let pure = union pos_only (image negate neg_only) in
+        if pure = [] then failwith "affirmative_negative_rule" else
+        filter (fun cl -> intersect cl pure = []) clauses;;
+
+let posneg_count (cls : prop_fm list list) (l : prop_fm) : int =
+        let m = length(filter (mem l) cls)
+        and n = length(filter (mem (negate l)) cls) in
+        m + n;;
+
+let rec dpll clauses =
+        if clauses = [] then true else if mem [] clauses then false else
+        try dpll(one_literal_rule clauses) with Failure _ ->
+        try dpll(affirmative_negative_rule clauses) with Failure _ ->
+        let pvs = filter positive (unions clauses) in
+        let p = maximize (posneg_count clauses) pvs in
+        dpll (insert [p] clauses) || dpll (insert [negate p] clauses);;
+
+let dpllsat (fm : prop_fm) : bool = dpll(cnf_to_list (cnf fm));;
+
+let dplltaut (fm : prop_fm) : bool = not(dpllsat(Not fm));;
