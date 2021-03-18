@@ -123,3 +123,19 @@ let rec dnf_to_list (fm : prop_fm) : prop_fm list list =
         | And(p,q) -> [List.hd (cnf_to_list p) @ List.hd (cnf_to_list q)]
         | Or(p,q) -> cnf_to_list p @ cnf_to_list q
         | _ -> failwith "Formula not in DNF";;
+
+let negative (lit : prop_fm) : bool =
+        match lit with
+          Not p -> true
+        | _ -> false;;
+
+let positive (lit : prop_fm) : bool = not(negative lit);;
+
+let negate (lit : prop_fm) : prop_fm =
+        match lit with
+          Not p -> p
+        | p -> Not p;;
+
+let trivial (lits : prop_fm list) : bool =
+        let pos,neg = partition positive lits in
+        intersect pos (image negate neg) <> [];;
