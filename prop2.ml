@@ -169,7 +169,7 @@ let posneg_count (cls : prop_fm list list) (l : prop_fm) : int =
         and n = length(filter (mem (negate l)) cls) in
         m + n;;
 
-let rec dpll clauses =
+let rec dpll (clauses : prop_fm list list) : bool =
         if clauses = [] then true else if mem [] clauses then false else
         try dpll(one_literal_rule clauses) with Failure _ ->
         try dpll(affirmative_negative_rule clauses) with Failure _ ->
