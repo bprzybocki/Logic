@@ -5,7 +5,8 @@ type prop_fm = False
              | And of prop_fm * prop_fm
              | Or of prop_fm * prop_fm
              | Imp of prop_fm * prop_fm
-             | Iff of prop_fm * prop_fm;;
+             | Iff of prop_fm * prop_fm
+             | None;;
 
 let rec polish (fm : prop_fm) : string =
         match fm with
@@ -16,7 +17,8 @@ let rec polish (fm : prop_fm) : string =
         | And(p,q) -> "K"^(polish p)^(polish q)
         | Or(p,q) -> "A"^(polish p)^(polish q)
         | Imp(p,q) -> "C"^(polish p)^(polish q)
-        | Iff(p,q) -> "E"^(polish p)^(polish q);;
+        | Iff(p,q) -> "E"^(polish p)^(polish q)
+        | None -> "";;
 
 let psimplify1 (fm : prop_fm) : prop_fm =
         match fm with
@@ -96,7 +98,8 @@ let rec eval (fm : prop_fm) (v : string -> bool) : bool =
         | And(p,q) -> (eval p v) && (eval q v)
         | Or(p,q) -> (eval p v) || (eval q v)
         | Imp(p,q) -> not(eval p v) || (eval q v)
-        | Iff(p,q) -> (eval p v) = (eval q v);;
+        | Iff(p,q) -> (eval p v) = (eval q v)
+        | None -> false;;
 
 let rec dual (fm : prop_fm) : prop_fm =
         match fm with
@@ -106,7 +109,7 @@ let rec dual (fm : prop_fm) : prop_fm =
         | Not p -> Not(dual p)
         | And(p,q) -> Or(dual p, dual q)
         | Or(p,q) -> And(dual p, dual q)
-        | _ -> failwith "Formula involves connectives ==> or <=>";;
+        | _ -> None;;
 
 let rec cnf_to_list (fm : prop_fm) : prop_fm list list =
         match fm with
@@ -114,7 +117,7 @@ let rec cnf_to_list (fm : prop_fm) : prop_fm list list =
         | Not p -> [[Not p]]
         | And(p,q) -> cnf_to_list p @ cnf_to_list q
         | Or(p,q) -> [List.hd (cnf_to_list p) @ List.hd (cnf_to_list q)]
-        | _ -> failwith "Formula not in CNF";;
+        | _ -> [[None]];;
 
 let rec dnf_to_list (fm : prop_fm) : prop_fm list list =
         match fm with
@@ -122,7 +125,7 @@ let rec dnf_to_list (fm : prop_fm) : prop_fm list list =
         | Not p -> [[Not p]]
         | And(p,q) -> [List.hd (cnf_to_list p) @ List.hd (cnf_to_list q)]
         | Or(p,q) -> cnf_to_list p @ cnf_to_list q
-        | _ -> failwith "Formula not in DNF";;
+        | _ -> [[None]];;
 
 let negative (lit : prop_fm) : bool =
         match lit with
@@ -151,6 +154,7 @@ let dnf_to_list (fm : prop_fm) : prop_fm list list =
         setify list2;;
 
 let one_literal_rule (clauses : prop_fm list list) : prop_fm list list =
+        if forall (fun cl -> length cl != 1) clauses then [[None]] else
         let u = List.hd (find (fun cl -> length cl = 1) clauses) in
         let u' = negate u in
         let clauses1 = filter (fun cl -> not (mem u cl)) clauses in
@@ -161,7 +165,7 @@ let affirmative_negative_rule (clauses : prop_fm list list) : prop_fm list list 
         let neg = image negate neg' in
         let pos_only = subtract pos neg and neg_only = subtract neg pos in
         let pure = union pos_only (image negate neg_only) in
-        if pure = [] then failwith "affirmative_negative_rule" else
+        if pure = [] then [[None]]  else
         filter (fun cl -> intersect cl pure = []) clauses;;
 
 let posneg_count (cls : prop_fm list list) (l : prop_fm) : int =
@@ -169,14 +173,23 @@ let posneg_count (cls : prop_fm list list) (l : prop_fm) : int =
         and n = length(filter (mem (negate l)) cls) in
         m + n;;
 
-let rec dpll (clauses : prop_fm list list) : bool =
-        if clauses = [] then true else if mem [] clauses then false else
-        try dpll(one_literal_rule clauses) with Failure _ ->
-        try dpll(affirmative_negative_rule clauses) with Failure _ ->
+let rec dpll (clauses : prop_fm list list) : bool option =
+        if clauses = [[None]] then None else
+        if clauses = [] then Some true else
+        if mem [] clauses then Some false else
+        let dp1 = dpll(one_literal_rule clauses) in
+        if dp1 != None then dp1 else
+        let dp2 = dpll(affirmative_negative_rule clauses) in
+        if dp2 != None then dp2 else
         let pvs = filter positive (unions clauses) in
         let p = maximize (posneg_count clauses) pvs in
-        dpll (insert [p] clauses) || dpll (insert [negate p] clauses);;
+        Some (dpll (insert [p] clauses) = Some true  ||
+        dpll (insert [negate p] clauses) = Some true);;
 
-let dpllsat (fm : prop_fm) : bool = dpll(cnf_to_list (cnf fm));;
+let dpllsat (fm : prop_fm) : bool option = dpll(cnf_to_list (cnf fm));;
 
-let dplltaut (fm : prop_fm) : bool = not(dpllsat(Not fm));;
+let dplltaut (fm : prop_fm) : bool option =
+        match dpllsat(Not fm) with
+          Some true -> Some false
+        | Some false -> Some true
+        | None -> None;;
