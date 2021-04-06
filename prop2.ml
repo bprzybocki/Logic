@@ -193,3 +193,55 @@ let dplltaut (fm : prop_fm) : bool option =
           Some true -> Some false
         | Some false -> Some true
         | None -> None;;
+
+type trailmix = Guessed | Deduced;;
+
+let unassigned =
+  let litabs p = match p with Not q -> q | _ -> p in
+  fun cls trail -> subtract (unions(image (image litabs) cls))
+                            (image (litabs ** fst) trail);;
+
+let rec unit_subpropagate (cls,fn,trail) =
+  let cls' = map (filter ((not) ** defined fn ** negate)) cls in
+  let uu = function [c] when not(defined fn c) -> [c] | _ -> [] in
+  let newunits = unions(map uu cls') in
+  if newunits = [] then (cls',fn,trail) else
+  let trail' = itlist (fun p t -> (p,Deduced)::t) newunits trail
+  and fn' = itlist (fun u -> (u |-> ())) newunits fn in
+  unit_subpropagate (cls',fn',trail');;
+
+let unit_propagate (cls,trail) =
+  let fn = itlist (fun (x,_) -> (x |-> ())) trail undefined in
+  let cls',fn',trail' = unit_subpropagate (cls,fn,trail) in cls',trail';;
+
+let rec backtrack trail =
+  match trail with
+    (p,Deduced)::tt -> backtrack tt
+  | _ -> trail;;
+
+let rec backjump cls p trail =
+  match backtrack trail with
+    (q,Guessed)::tt ->
+        let cls',trail' = unit_propagate (cls,(p,Guessed)::tt) in
+        if mem [] cls' then backjump cls p tt else trail
+  | _ -> trail;;
+
+let rec dplb cls trail =
+  let cls',trail' = unit_propagate (cls,trail) in
+  if mem [] cls' then
+    match backtrack trail with
+      (p,Guessed)::tt ->
+        let trail' = backjump cls p tt in
+        let declits = filter (fun (_,d) -> d = Guessed) trail' in
+        let conflict = insert (negate p) (image (negate ** fst) declits) in
+        dplb (conflict::cls) ((negate p,Deduced)::trail')
+    | _ -> false
+  else
+    match unassigned cls trail' with
+      [] -> true
+    | ps -> let p = maximize (posneg_count cls') ps in
+            dplb cls ((p,Guessed)::trail');;
+
+let dplbsat fm = dplb (cnf_to_list (cnf fm)) [];;
+
+let dplbtaut fm = not(dplbsat(Not fm));;
